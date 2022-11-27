@@ -1,0 +1,1 @@
+# organizacja_komputerow
