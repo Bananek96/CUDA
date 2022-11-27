@@ -2,120 +2,114 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
-#include <stdio.h>
+#include <iostream>
+#include <string>
+#include <cassert>
 
-cudaError_t addWithCuda(int* c, const int* a, const int* b, unsigned int size);
+#include "stb_image.h"
+#include "stb_image_write.h"
 
-__global__ void addKernel(int* c, const int* a, const int* b)
+struct Pixel
 {
-    int i = threadIdx.x;
-    c[i] = a[i] + b[i];
+    unsigned char r, g, b, a;
+};
+
+void ConvertImageToGrayCpu(unsigned char* imageRGBA, int width, int height)
+{
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            Pixel* ptrPixel = (Pixel*)&imageRGBA[y * width * 4 + 4 * x];
+            unsigned char pixelValue = (unsigned char)(ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+            ptrPixel->r = pixelValue;
+            ptrPixel->g = pixelValue;
+            ptrPixel->b = pixelValue;
+            ptrPixel->a = 255;
+        }
+    }
 }
 
-int main()
+__global__ void ConvertImageToGrayGpu(unsigned char* imageRGBA)
 {
-    const int arraySize = 5;
-    const int a[arraySize] = { 1, 2, 3, 4, 5 };
-    const int b[arraySize] = { 10, 20, 30, 40, 50 };
-    int c[arraySize] = { 0 };
+    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
+    uint32_t idx = y * blockDim.x * gridDim.x + x;
 
-    // Add vectors in parallel.
-    cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addWithCuda failed!");
-        return 1;
-    }
-
-    printf("{1,2,3,4,5} + {10,20,30,40,50} = {%d,%d,%d,%d,%d}\n",
-        c[0], c[1], c[2], c[3], c[4]);
-
-    // cudaDeviceReset must be called before exiting in order for profiling and
-    // tracing tools such as Nsight and Visual Profiler to show complete traces.
-    cudaStatus = cudaDeviceReset();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceReset failed!");
-        return 1;
-    }
-
-    return 0;
+    Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
+    unsigned char pixelValue = (unsigned char)
+        (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+    ptrPixel->r = pixelValue;
+    ptrPixel->g = pixelValue;
+    ptrPixel->b = pixelValue;
+    ptrPixel->a = 255;
 }
 
-// Helper function for using CUDA to add vectors in parallel.
-cudaError_t addWithCuda(int* c, const int* a, const int* b, unsigned int size)
+int main(int argc, char** argv)
 {
-    int* dev_a = 0;
-    int* dev_b = 0;
-    int* dev_c = 0;
-    cudaError_t cudaStatus;
-
-    // Choose which GPU to run on, change this on a multi-GPU system.
-    cudaStatus = cudaSetDevice(0);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-        goto Error;
+    // Check argument count
+    if (argc < 2)
+    {
+        std::cout << "Usage: 02_ImageToGray <filename>";
+        return -1;
     }
 
-    // Allocate GPU buffers for three vectors (two input, one output)    .
-    cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
+    // Open image
+    int width, height, componentCount;
+    std::cout << "Loading png file...";
+    unsigned char* imageData = stbi_load(argv[1], &width, &height, &componentCount, 4);
+    if (!imageData)
+    {
+        std::cout << std::endl << "Failed to open \"" << argv[1] << "\"";
+        return -1;
+    }
+    std::cout << " DONE" << std::endl;
+
+    // Validate image sizes
+    if (width % 32 || height % 32)
+    {
+        // NOTE: Leaked memory of "imageData"
+        std::cout << "Width and/or Height is not dividable by 32!";
+        return -1;
     }
 
-    cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
+    /*
+    // Process image on cpu
+    std::cout << "Processing image...";
+    ConvertImageToGrayCpu(imageData, width, height);
+    std::cout << " DONE" << std::endl;
+    */
 
-    cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
+    // Copy data to the gpu
+    std::cout << "Copy data to GPU...";
+    unsigned char* ptrImageDataGpu = nullptr;
+    assert(cudaMalloc(&ptrImageDataGpu, width * height * 4) == cudaSuccess);
+    assert(cudaMemcpy(ptrImageDataGpu, imageData, width * height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
+    std::cout << " DONE" << std::endl;
 
-    // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
+    // Process image on gpu
+    std::cout << "Running CUDA Kernel...";
+    dim3 blockSize(32, 32);
+    dim3 gridSize(width / blockSize.x, height / blockSize.y);
+    ConvertImageToGrayGpu << <gridSize, blockSize >> > (ptrImageDataGpu);
+    auto err = cudaGetLastError();
+    std::cout << " DONE" << std::endl;
 
-    cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
+    // Copy data from the gpu
+    std::cout << "Copy data from GPU...";
+    assert(cudaMemcpy(imageData, ptrImageDataGpu, width * height * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
+    std::cout << " DONE" << std::endl;
 
-    // Launch a kernel on the GPU with one thread for each element.
-    addKernel << <1, size >> > (dev_c, dev_a, dev_b);
+    // Build output filename
+    std::string fileNameOut = argv[1];
+    fileNameOut = fileNameOut.substr(0, fileNameOut.find_last_of('.')) + "_gray.png";
 
-    // Check for any errors launching the kernel
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-        goto Error;
-    }
+    // Write image back to disk
+    std::cout << "Writing png to disk...";
+    stbi_write_png(fileNameOut.c_str(), width, height, 4, imageData, 4 * width);
+    std::cout << " DONE";
 
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-        goto Error;
-    }
-
-    // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
-
-Error:
-    cudaFree(dev_c);
-    cudaFree(dev_a);
-    cudaFree(dev_b);
-
-    return cudaStatus;
+    // Free memory
+    cudaFree(ptrImageDataGpu);
+    stbi_image_free(imageData);
 }
