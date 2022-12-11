@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <cassert>
+#include <chrono>
 
 #include "stb_image.h"
 #include "stb_image_write.h"
@@ -47,6 +48,9 @@ __global__ void ConvertImageToGrayGpu(unsigned char* imageRGBA)
 
 int main(int argc, char** argv)
 {
+    // Start measuring time
+    auto begin = std::chrono::high_resolution_clock::now();
+
     // Check argument count
     if (argc < 2)
     {
@@ -112,4 +116,10 @@ int main(int argc, char** argv)
     // Free memory
     cudaFree(ptrImageDataGpu);
     stbi_image_free(imageData);
+ 
+    // Stop measuring time and calculate the elapsed time
+    auto end = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+
+    printf("Time measured: %.3f seconds.\n", elapsed.count() * 1e-9);
 }
