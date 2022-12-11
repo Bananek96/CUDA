@@ -5,9 +5,8 @@
 #include <iostream>
 #include <string>
 #include <cassert>
-#include <chrono>
 #include <stdio.h>
-#include <time.h>
+#include <ctime>
 
 #include "stb_image.h"
 #include "stb_image_write.h"
@@ -34,25 +33,16 @@ __global__ void ConvertImageToGrayGpu(unsigned char* imageRGBA)
     ptrPixel->a = 255;
 }
 
-float start_clock()
-{
-    float st_time = time(NULL);
-
-    return st_time; 
-}
-
-float stop_clock(float st_time)
-{
-    float en_time = time(NULL);
-    float time = (float)(en_time - st_time);
-
-    return time;
-}
-
 int main(int argc, char** argv)
 {
     // Start measuring time
-    float st_time = start_clock();
+    float elapsed1 = 0;
+    cudaEvent_t start1, stop1;
+
+    cudaEventCreate(&start1);
+    cudaEventCreate(&stop1);
+
+    cudaEventRecord(start1, 0);
 
     // Check argument count
     if (argc < 2)
@@ -114,14 +104,27 @@ int main(int argc, char** argv)
     stbi_image_free(imageData);
  
     // Stop measuring time and calculate the elapsed time
-    float time_1 = stop_clock(st_time);
+    cudaEventRecord(stop1, 0);
+    cudaEventSynchronize(stop1);
 
-    printf("Time measured: %.3f seconds.\n", time_1);
+    cudaEventElapsedTime(&elapsed1, start1, stop1);
+
+    cudaEventDestroy(start1);
+    cudaEventDestroy(stop1);
+    float time_1 = elapsed1;
+
+    cout << "The elapsed time in gpu: " << time_1 << "ms" << endl;
 
     // Multiple GPUs
 
     // Start measuring time
-    float st_time2 = start_clock();
+    float elapsed2 = 0;
+    cudaEvent_t start2, stop2;
+
+    cudaEventCreate(&start2);
+    cudaEventCreate(&stop2);
+
+    cudaEventRecord(start2, 0);
 
     // Check argument count
     if (argc < 2)
@@ -166,10 +169,10 @@ int main(int argc, char** argv)
     cout << "Running CUDA Kernel...";
     dim3 blockSize2(32, 32);
     dim3 gridSize2(width2 / blockSize.x, height2 / blockSize.y);
-    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0 ,stream4 >>> (ptrImageDataGpu);
-    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream3 >>> (ptrImageDataGpu);
-    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream2 >>> (ptrImageDataGpu);
-    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream1 >>> (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0 ,stream4>>> (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream3>>> (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream2>>> (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream1>>> (ptrImageDataGpu);
     auto error = cudaGetLastError();
     cout << " DONE" << endl;
 
@@ -192,10 +195,17 @@ int main(int argc, char** argv)
     stbi_image_free(imageData2);
 
     // Stop measuring time and calculate the elapsed time
-    float time_2 = stop_clock(st_time2);
+    cudaEventRecord(stop2, 0);
+    cudaEventSynchronize(stop2);
 
-    printf("Time measured: %.3f seconds.\n", time_2);
+    cudaEventElapsedTime(&elapsed2, start2, stop2);
 
-    float  time_d = time_1 - time_2;
-    printf("Time difference: %.3f seconds.\n", time_d);
+    cudaEventDestroy(start2);
+    cudaEventDestroy(stop2);
+    float time_2 = elapsed2;
+
+    cout << "The elapsed time in gpu: " << time_2 << "ms" << endl;
+
+    float time_d = time_2 - time_1;
+    cout << "Time difference: " << time_d << "ms" << endl;
 }
