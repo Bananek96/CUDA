@@ -6,6 +6,8 @@
 #include <string>
 #include <cassert>
 #include <chrono>
+#include <stdio.h>
+#include <time.h>
 
 #include "stb_image.h"
 #include "stb_image_write.h"
@@ -32,10 +34,25 @@ __global__ void ConvertImageToGrayGpu(unsigned char* imageRGBA)
     ptrPixel->a = 255;
 }
 
+float start_clock()
+{
+    float st_time = time(NULL);
+
+    return st_time; 
+}
+
+float stop_clock(float st_time)
+{
+    float en_time = time(NULL);
+    float time = (float)(en_time - st_time);
+
+    return time;
+}
+
 int main(int argc, char** argv)
 {
     // Start measuring time
-    auto begin = chrono::high_resolution_clock::now();
+    float st_time = start_clock();
 
     // Check argument count
     if (argc < 2)
@@ -85,7 +102,7 @@ int main(int argc, char** argv)
 
     // Build output filename
     string fileNameOut = argv[1];
-    fileNameOut = fileNameOut.substr(0, fileNameOut.find_last_of('.')) + "_gray.png";
+    fileNameOut = fileNameOut.substr(0, fileNameOut.find_last_of('.')) + "_gray1.png";
 
     // Write image back to disk
     cout << "Writing png to disk...";
@@ -97,8 +114,88 @@ int main(int argc, char** argv)
     stbi_image_free(imageData);
  
     // Stop measuring time and calculate the elapsed time
-    auto end = chrono::high_resolution_clock::now();
-    auto elapsed = chrono::duration_cast<chrono::nanoseconds>(end - begin);
+    float time_1 = stop_clock(st_time);
 
-    printf("Time measured: %.3f seconds.\n", elapsed.count() * 1e-9);
+    printf("Time measured: %.3f seconds.\n", time_1);
+
+    // Multiple GPUs
+
+    // Start measuring time
+    float st_time2 = start_clock();
+
+    // Check argument count
+    if (argc < 2)
+    {
+        cout << "Usage: 02_ImageToGray <filename>";
+        return -1;
+    }
+
+    // Open image
+    int width2, height2, componentCount2;
+    cout << "Loading png file...";
+    unsigned char* imageData2 = stbi_load(argv[1], &width2, &height2, &componentCount2, 4);
+    if (!imageData2)
+    {
+        cout << endl << "Failed to open \"" << argv[1] << "\"";
+        return -1;
+    }
+    cout << " DONE" << endl;
+
+    // Validate image sizes
+    if (width2 % 32 || height2 % 32)
+    {
+        // NOTE: Leaked memory of "imageData"
+        cout << "Width and/or Height is not dividable by 32!";
+        return -1;
+    }
+
+    // Create two CUDA streams.
+    cudaStream_t stream1; cudaStreamCreate(&stream1);
+    cudaStream_t stream2; cudaStreamCreate(&stream2);
+    cudaStream_t stream3; cudaStreamCreate(&stream3);
+    cudaStream_t stream4; cudaStreamCreate(&stream4);
+
+    // Copy data to the gpu
+    cout << "Copy data to GPU...";
+    unsigned char* ptrImageDataGpu2 = nullptr;
+    assert(cudaMalloc(&ptrImageDataGpu2, width2 * height2 * 4) == cudaSuccess);
+    assert(cudaMemcpyAsync(ptrImageDataGpu2, imageData2, width2 * height2 * 4, cudaMemcpyHostToDevice, stream1) == cudaSuccess);
+    cout << " DONE" << endl;
+
+    // Process image on gpu
+    cout << "Running CUDA Kernel...";
+    dim3 blockSize2(32, 32);
+    dim3 gridSize2(width2 / blockSize.x, height2 / blockSize.y);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0 ,stream4 >>> (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream3 >>> (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream2 >>> (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream1 >>> (ptrImageDataGpu);
+    auto error = cudaGetLastError();
+    cout << " DONE" << endl;
+
+    // Copy data from the gpu
+    cout << "Copy data from GPU...";
+    assert(cudaMemcpy(imageData2, ptrImageDataGpu2, width2 * height2 * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
+    cout << " DONE" << endl;
+
+    // Build output filename
+    string fileNameOut2 = argv[1];
+    fileNameOut2 = fileNameOut2.substr(0, fileNameOut2.find_last_of('.')) + "_gray2.png";
+
+    // Write image back to disk
+    cout << "Writing png to disk...";
+    stbi_write_png(fileNameOut2.c_str(), width2, height2, 4, imageData2, 4 * width2);
+    cout << " DONE" << endl;
+
+    // Free memory
+    cudaFree(ptrImageDataGpu2);
+    stbi_image_free(imageData2);
+
+    // Stop measuring time and calculate the elapsed time
+    float time_2 = stop_clock(st_time2);
+
+    printf("Time measured: %.3f seconds.\n", time_2);
+
+    float  time_d = time_1 - time_2;
+    printf("Time difference: %.3f seconds.\n", time_d);
 }
