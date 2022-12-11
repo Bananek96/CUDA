@@ -15,22 +15,6 @@ struct Pixel
     unsigned char r, g, b, a;
 };
 
-void ConvertImageToGrayCpu(unsigned char* imageRGBA, int width, int height)
-{
-    for (int y = 0; y < height; y++)
-    {
-        for (int x = 0; x < width; x++)
-        {
-            Pixel* ptrPixel = (Pixel*)&imageRGBA[y * width * 4 + 4 * x];
-            unsigned char pixelValue = (unsigned char)(ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
-            ptrPixel->r = pixelValue;
-            ptrPixel->g = pixelValue;
-            ptrPixel->b = pixelValue;
-            ptrPixel->a = 255;
-        }
-    }
-}
-
 __global__ void ConvertImageToGrayGpu(unsigned char* imageRGBA)
 {
     uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -76,13 +60,6 @@ int main(int argc, char** argv)
         std::cout << "Width and/or Height is not dividable by 32!";
         return -1;
     }
-
-    /*
-    // Process image on cpu
-    std::cout << "Processing image...";
-    ConvertImageToGrayCpu(imageData, width, height);
-    std::cout << " DONE" << std::endl;
-    */
 
     // Copy data to the gpu
     std::cout << "Copy data to GPU...";
