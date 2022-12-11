@@ -10,6 +10,8 @@
 #include "stb_image.h"
 #include "stb_image_write.h"
 
+using namespace std;
+
 struct Pixel
 {
     unsigned char r, g, b, a;
@@ -33,70 +35,70 @@ __global__ void ConvertImageToGrayGpu(unsigned char* imageRGBA)
 int main(int argc, char** argv)
 {
     // Start measuring time
-    auto begin = std::chrono::high_resolution_clock::now();
+    auto begin = chrono::high_resolution_clock::now();
 
     // Check argument count
     if (argc < 2)
     {
-        std::cout << "Usage: 02_ImageToGray <filename>";
+        cout << "Usage: 02_ImageToGray <filename>";
         return -1;
     }
 
     // Open image
     int width, height, componentCount;
-    std::cout << "Loading png file...";
+    cout << "Loading png file...";
     unsigned char* imageData = stbi_load(argv[1], &width, &height, &componentCount, 4);
     if (!imageData)
     {
-        std::cout << std::endl << "Failed to open \"" << argv[1] << "\"";
+        cout << endl << "Failed to open \"" << argv[1] << "\"";
         return -1;
     }
-    std::cout << " DONE" << std::endl;
+    cout << " DONE" << endl;
 
     // Validate image sizes
     if (width % 32 || height % 32)
     {
         // NOTE: Leaked memory of "imageData"
-        std::cout << "Width and/or Height is not dividable by 32!";
+        cout << "Width and/or Height is not dividable by 32!";
         return -1;
     }
 
     // Copy data to the gpu
-    std::cout << "Copy data to GPU...";
+    cout << "Copy data to GPU...";
     unsigned char* ptrImageDataGpu = nullptr;
     assert(cudaMalloc(&ptrImageDataGpu, width * height * 4) == cudaSuccess);
     assert(cudaMemcpy(ptrImageDataGpu, imageData, width * height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
-    std::cout << " DONE" << std::endl;
+    cout << " DONE" << endl;
 
     // Process image on gpu
-    std::cout << "Running CUDA Kernel...";
+    cout << "Running CUDA Kernel...";
     dim3 blockSize(32, 32);
     dim3 gridSize(width / blockSize.x, height / blockSize.y);
-    ConvertImageToGrayGpu << <gridSize, blockSize >> > (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize, blockSize>>> (ptrImageDataGpu);
     auto err = cudaGetLastError();
-    std::cout << " DONE" << std::endl;
+    cout << " DONE" << endl;
 
     // Copy data from the gpu
-    std::cout << "Copy data from GPU...";
+    cout << "Copy data from GPU...";
     assert(cudaMemcpy(imageData, ptrImageDataGpu, width * height * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
-    std::cout << " DONE" << std::endl;
+    cout << " DONE" << endl;
 
     // Build output filename
-    std::string fileNameOut = argv[1];
+    string fileNameOut = argv[1];
     fileNameOut = fileNameOut.substr(0, fileNameOut.find_last_of('.')) + "_gray.png";
 
     // Write image back to disk
-    std::cout << "Writing png to disk...";
+    cout << "Writing png to disk...";
     stbi_write_png(fileNameOut.c_str(), width, height, 4, imageData, 4 * width);
-    std::cout << " DONE";
+    cout << " DONE" << endl;
 
     // Free memory
     cudaFree(ptrImageDataGpu);
     stbi_image_free(imageData);
  
     // Stop measuring time and calculate the elapsed time
-    auto end = std::chrono::high_resolution_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+    auto end = chrono::high_resolution_clock::now();
+    auto elapsed = chrono::duration_cast<chrono::nanoseconds>(end - begin);
 
     printf("Time measured: %.3f seconds.\n", elapsed.count() * 1e-9);
 }
