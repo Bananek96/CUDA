@@ -35,15 +35,6 @@ __global__ void ConvertImageToGrayGpu(unsigned char* imageRGBA)
 
 int main(int argc, char** argv)
 {
-    // Start measuring time
-    float elapsed1 = 0;
-    cudaEvent_t start1, stop1;
-
-    cudaEventCreate(&start1);
-    cudaEventCreate(&stop1);
-
-    cudaEventRecord(start1, 0);
-
     // Check argument count
     if (argc < 2)
     {
@@ -70,6 +61,15 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    // Start measuring time
+    float elapsed1 = 0;
+    cudaEvent_t start1, stop1;
+
+    cudaEventCreate(&start1);
+    cudaEventCreate(&stop1);
+
+    cudaEventRecord(start1, 0);
+
     // Copy data to the gpu
     cout << "Copy data to GPU...";
     unsigned char* ptrImageDataGpu = nullptr;
@@ -94,15 +94,6 @@ int main(int argc, char** argv)
     string fileNameOut = argv[1];
     fileNameOut = fileNameOut.substr(0, fileNameOut.find_last_of('.')) + "_gray1.png";
 
-    // Write image back to disk
-    cout << "Writing png to disk...";
-    stbi_write_png(fileNameOut.c_str(), width, height, 4, imageData, 4 * width);
-    cout << " DONE" << endl;
-
-    // Free memory
-    cudaFree(ptrImageDataGpu);
-    stbi_image_free(imageData);
- 
     // Stop measuring time and calculate the elapsed time
     cudaEventRecord(stop1, 0);
     cudaEventSynchronize(stop1);
@@ -115,16 +106,16 @@ int main(int argc, char** argv)
 
     cout << "The elapsed time in gpu: " << time_1 << "ms" << endl;
 
+    // Write image back to disk
+    cout << "Writing png to disk...";
+    stbi_write_png(fileNameOut.c_str(), width, height, 4, imageData, 4 * width);
+    cout << " DONE" << endl;
+
+    // Free memory
+    cudaFree(ptrImageDataGpu);
+    stbi_image_free(imageData);
+
     // Multiple GPUs
-
-    // Start measuring time
-    float elapsed2 = 0;
-    cudaEvent_t start2, stop2;
-
-    cudaEventCreate(&start2);
-    cudaEventCreate(&stop2);
-
-    cudaEventRecord(start2, 0);
 
     // Check argument count
     if (argc < 2)
@@ -152,17 +143,31 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    // Making RGB layers
+
     // Create two CUDA streams.
     cudaStream_t stream1; cudaStreamCreate(&stream1);
     cudaStream_t stream2; cudaStreamCreate(&stream2);
     cudaStream_t stream3; cudaStreamCreate(&stream3);
     cudaStream_t stream4; cudaStreamCreate(&stream4);
 
+    // Start measuring time
+    float elapsed2 = 0;
+    cudaEvent_t start2, stop2;
+
+    cudaEventCreate(&start2);
+    cudaEventCreate(&stop2);
+
+    cudaEventRecord(start2, 0);
+
     // Copy data to the gpu
     cout << "Copy data to GPU...";
     unsigned char* ptrImageDataGpu2 = nullptr;
     assert(cudaMalloc(&ptrImageDataGpu2, width2 * height2 * 4) == cudaSuccess);
     assert(cudaMemcpyAsync(ptrImageDataGpu2, imageData2, width2 * height2 * 4, cudaMemcpyHostToDevice, stream1) == cudaSuccess);
+    assert(cudaMemcpyAsync(ptrImageDataGpu2, imageData2, width2 * height2 * 4, cudaMemcpyHostToDevice, stream2) == cudaSuccess);
+    assert(cudaMemcpyAsync(ptrImageDataGpu2, imageData2, width2 * height2 * 4, cudaMemcpyHostToDevice, stream3) == cudaSuccess);
+    assert(cudaMemcpyAsync(ptrImageDataGpu2, imageData2, width2 * height2 * 4, cudaMemcpyHostToDevice, stream4) == cudaSuccess);
     cout << " DONE" << endl;
 
     // Process image on gpu
@@ -185,15 +190,6 @@ int main(int argc, char** argv)
     string fileNameOut2 = argv[1];
     fileNameOut2 = fileNameOut2.substr(0, fileNameOut2.find_last_of('.')) + "_gray2.png";
 
-    // Write image back to disk
-    cout << "Writing png to disk...";
-    stbi_write_png(fileNameOut2.c_str(), width2, height2, 4, imageData2, 4 * width2);
-    cout << " DONE" << endl;
-
-    // Free memory
-    cudaFree(ptrImageDataGpu2);
-    stbi_image_free(imageData2);
-
     // Stop measuring time and calculate the elapsed time
     cudaEventRecord(stop2, 0);
     cudaEventSynchronize(stop2);
@@ -205,6 +201,15 @@ int main(int argc, char** argv)
     float time_2 = elapsed2;
 
     cout << "The elapsed time in gpu: " << time_2 << "ms" << endl;
+
+    // Write image back to disk
+    cout << "Writing png to disk...";
+    stbi_write_png(fileNameOut2.c_str(), width2, height2, 4, imageData2, 4 * width2);
+    cout << " DONE" << endl;
+
+    // Free memory
+    cudaFree(ptrImageDataGpu2);
+    stbi_image_free(imageData2);
 
     float time_d = time_2 - time_1;
     cout << "Time difference: " << time_d << "ms" << endl;
