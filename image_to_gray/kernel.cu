@@ -1,5 +1,4 @@
-﻿
-#include "cuda_runtime.h"
+﻿#include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
 #include <iostream>
@@ -30,6 +29,52 @@ __global__ void ConvertImageToGrayGpu(unsigned char* imageRGBA)
     ptrPixel->r = pixelValue;
     ptrPixel->g = pixelValue;
     ptrPixel->b = pixelValue;
+    ptrPixel->a = 255;
+}
+
+__global__ void ConvertR(unsigned char* imageRGBA)
+{
+    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
+    uint32_t idx = y * blockDim.x * gridDim.x + x;
+
+    Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
+    unsigned char pixelValue = (unsigned char)
+        (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+        ptrPixel->r = pixelValue;
+}
+
+__global__ void ConvertG(unsigned char* imageRGBA)
+{
+    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
+    uint32_t idx = y * blockDim.x * gridDim.x + x;
+
+    Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
+    unsigned char pixelValue = (unsigned char)
+        (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+        ptrPixel->g = pixelValue;
+}
+__global__ void ConvertB(unsigned char* imageRGBA)
+{
+    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
+    uint32_t idx = y * blockDim.x * gridDim.x + x;
+
+    Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
+    unsigned char pixelValue = (unsigned char)
+        (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+        ptrPixel->b = pixelValue;
+}
+
+__global__ void ConvertA(unsigned char* imageRGBA)
+{
+    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
+    uint32_t idx = y * blockDim.x * gridDim.x + x;
+
+    Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
+    (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
     ptrPixel->a = 255;
 }
 
@@ -89,11 +134,7 @@ int main(int argc, char** argv)
     cout << "Copy data from GPU...";
     assert(cudaMemcpy(imageData, ptrImageDataGpu, width * height * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
     cout << " DONE" << endl;
-
-    // Build output filename
-    string fileNameOut = argv[1];
-    fileNameOut = fileNameOut.substr(0, fileNameOut.find_last_of('.')) + "_gray1.png";
-
+    
     // Stop measuring time and calculate the elapsed time
     cudaEventRecord(stop1, 0);
     cudaEventSynchronize(stop1);
@@ -105,6 +146,10 @@ int main(int argc, char** argv)
     float time_1 = elapsed1;
 
     cout << "The elapsed time in gpu: " << time_1 << "ms" << endl;
+
+    // Build output filename
+    string fileNameOut = argv[1];
+    fileNameOut = fileNameOut.substr(0, fileNameOut.find_last_of('.')) + "_gray1.png";
 
     // Write image back to disk
     cout << "Writing png to disk...";
@@ -145,7 +190,7 @@ int main(int argc, char** argv)
 
     // Making RGB layers
 
-    // Create two CUDA streams.
+    // Create four CUDA streams.
     cudaStream_t stream1; cudaStreamCreate(&stream1);
     cudaStream_t stream2; cudaStreamCreate(&stream2);
     cudaStream_t stream3; cudaStreamCreate(&stream3);
@@ -174,10 +219,10 @@ int main(int argc, char** argv)
     cout << "Running CUDA Kernel...";
     dim3 blockSize2(32, 32);
     dim3 gridSize2(width2 / blockSize.x, height2 / blockSize.y);
-    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0 ,stream4>>> (ptrImageDataGpu);
-    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream3>>> (ptrImageDataGpu);
-    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream2>>> (ptrImageDataGpu);
-    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream1>>> (ptrImageDataGpu);
+    ConvertR <<<gridSize2, blockSize2, 0 ,stream1>>> (ptrImageDataGpu2);
+    ConvertG <<<gridSize2, blockSize2, 0, stream2>>> (ptrImageDataGpu2);
+    ConvertB <<<gridSize2, blockSize2, 0, stream3>>> (ptrImageDataGpu2);
+    ConvertA <<<gridSize2, blockSize2, 0, stream4>>> (ptrImageDataGpu2);
     auto error = cudaGetLastError();
     cout << " DONE" << endl;
 
@@ -185,10 +230,6 @@ int main(int argc, char** argv)
     cout << "Copy data from GPU...";
     assert(cudaMemcpy(imageData2, ptrImageDataGpu2, width2 * height2 * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
     cout << " DONE" << endl;
-
-    // Build output filename
-    string fileNameOut2 = argv[1];
-    fileNameOut2 = fileNameOut2.substr(0, fileNameOut2.find_last_of('.')) + "_gray2.png";
 
     // Stop measuring time and calculate the elapsed time
     cudaEventRecord(stop2, 0);
@@ -201,6 +242,10 @@ int main(int argc, char** argv)
     float time_2 = elapsed2;
 
     cout << "The elapsed time in gpu: " << time_2 << "ms" << endl;
+
+    // Build output filename
+    string fileNameOut2 = argv[1];
+    fileNameOut2 = fileNameOut2.substr(0, fileNameOut2.find_last_of('.')) + "_gray2.png";
 
     // Write image back to disk
     cout << "Writing png to disk...";
