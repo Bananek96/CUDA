@@ -40,8 +40,11 @@ __global__ void ConvertR(unsigned char* imageRGBA)
 
     Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
     unsigned char pixelValue = (unsigned char)
-        (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
-        ptrPixel->r = pixelValue;
+    (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+    ptrPixel->r = pixelValue;
+    ptrPixel->g = pixelValue;
+    ptrPixel->b = pixelValue;
+    ptrPixel->a = 255;
 }
 
 __global__ void ConvertG(unsigned char* imageRGBA)
@@ -52,8 +55,12 @@ __global__ void ConvertG(unsigned char* imageRGBA)
 
     Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
     unsigned char pixelValue = (unsigned char)
-        (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
-        ptrPixel->g = pixelValue;
+    (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+    ptrPixel->r = pixelValue;
+    ptrPixel->g = pixelValue;
+    ptrPixel->b = pixelValue;
+    ptrPixel->a = 255;
+    
 }
 __global__ void ConvertB(unsigned char* imageRGBA)
 {
@@ -63,19 +70,26 @@ __global__ void ConvertB(unsigned char* imageRGBA)
 
     Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
     unsigned char pixelValue = (unsigned char)
-        (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
-        ptrPixel->b = pixelValue;
+    (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+    
+    ptrPixel->r = pixelValue;
+    ptrPixel->g = pixelValue;
+    ptrPixel->b = pixelValue;
+    ptrPixel->a = 255;
+       
 }
 
-__global__ void ConvertA(unsigned char* imageRGBA)
+__global__ void ConvertA(unsigned char* imageRGBA )
 {
     uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
     uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
     uint32_t idx = y * blockDim.x * gridDim.x + x;
 
+
     Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
-    (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+    unsigned char pixelValue = (unsigned char)
     ptrPixel->a = 255;
+   
 }
 
 int main(int argc, char** argv)
@@ -106,7 +120,7 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    // Start measuring time
+     //Start measuring time
     float elapsed1 = 0;
     cudaEvent_t start1, stop1;
 
@@ -219,7 +233,7 @@ int main(int argc, char** argv)
     cout << "Running CUDA Kernel...";
     dim3 blockSize2(32, 32);
     dim3 gridSize2(width2 / blockSize.x, height2 / blockSize.y);
-    ConvertR <<<gridSize2, blockSize2, 0 ,stream1>>> (ptrImageDataGpu2);
+    ConvertR <<<gridSize2, blockSize2, 0,stream1>>> (ptrImageDataGpu2);
     ConvertG <<<gridSize2, blockSize2, 0, stream2>>> (ptrImageDataGpu2);
     ConvertB <<<gridSize2, blockSize2, 0, stream3>>> (ptrImageDataGpu2);
     ConvertA <<<gridSize2, blockSize2, 0, stream4>>> (ptrImageDataGpu2);
