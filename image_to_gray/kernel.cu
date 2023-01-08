@@ -143,7 +143,7 @@ int main(int argc, char** argv)
     }
 
     // Divide image into 4sub image
-    const int divideImage2Width = width2;
+    const int divideImage2Width = width2/2;
     const int divideImage2Height = height2/2;
 
     // alocate memory
@@ -153,12 +153,14 @@ int main(int argc, char** argv)
     unsigned char* subImageData4 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
     
     // copy imageData2 to subImage
-    for (int y = 0; y <= height2; y++) {
-        for (int x = 0; x <= width2; x++) {
-            subImageData1[y * divideImage2Width + x] = imageData2[y * width2 + x];
-            subImageData2[y * divideImage2Width + x] = imageData2[(y * width2 + x)*2];
-            subImageData3[y * divideImage2Width + x] = imageData2[(y + divideImage2Height) * width2 + x];
-            subImageData4[y * divideImage2Width + x] = imageData2[((y + divideImage2Height) * width2 + x)*2];
+    for (int y = 0; y < divideImage2Height; y++) {
+        for (int x = 0; x < divideImage2Width; x++) {
+            for (int z = 0; z <= componentCount2; z++) {
+                subImageData1[(y * divideImage2Width + x) * componentCount2 + z] = imageData2[(y * width2 + x) * componentCount2 + z];
+                subImageData2[(y * divideImage2Width + x) * componentCount2 + z] = imageData2[(y * width2 + x + divideImage2Width) * componentCount2 + z];
+                subImageData3[(y * divideImage2Width + x) * componentCount2 + z] = imageData2[((y + divideImage2Height) * width2 + x) * componentCount2 + z];
+                subImageData4[(y * divideImage2Width + x) * componentCount2 + z] = imageData2[((y + divideImage2Height) * width2 + x + divideImage2Width) * componentCount2 + z];
+            }
         }
     }
 
@@ -233,14 +235,14 @@ int main(int argc, char** argv)
     cout << "The elapsed time in gpu: " << time_2 << "ms" << endl;
 
     // Build output filename
-
-    for (int y = 0; y <= height2; y++) {
-        for (int x = 0; x <= width2; x++) {
-            imageData2[y * width2 + x] = subImageData1[y * divideImage2Width + x];
-            imageData2[(y * width2 + x) * 2] = subImageData2[y * divideImage2Width + x];
-            imageData2[(y + divideImage2Height) * width2 + x] = subImageData3[y * divideImage2Width + x];
-            imageData2[((y + divideImage2Height) * width2 + x) * 2] = subImageData4[y * divideImage2Width + x];
-
+    for (int y = 0; y < divideImage2Height; y++) {
+        for (int x = 0; x < divideImage2Width; x++) {
+            for (int z = 0; z <= componentCount2; z++) {
+                imageData2[(y * width2 + x) * componentCount2 + z] = subImageData1[(y * divideImage2Width + x) * componentCount2 + z];
+                imageData2[(y * width2 + x + divideImage2Width) * componentCount2 + z] = subImageData2[(y * divideImage2Width + x) * componentCount2 + z];
+                imageData2[((y + divideImage2Height) * width2 + x) * componentCount2 + z] = subImageData3[(y * divideImage2Width + x) * componentCount2 + z];
+                imageData2[((y + divideImage2Height) * width2 + x + divideImage2Width) * componentCount2 + z] = subImageData4[(y * divideImage2Width + x) * componentCount2 + z];
+            }
         }
     }
 
