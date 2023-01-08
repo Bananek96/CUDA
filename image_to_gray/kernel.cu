@@ -146,13 +146,13 @@ int main(int argc, char** argv)
     const int divideImage2Width = width2/2;
     const int divideImage2Height = height2/2;
 
-    // alocate memory
+    // Alocate memory
     unsigned char* subImageData1 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
     unsigned char* subImageData2 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
     unsigned char* subImageData3 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
     unsigned char* subImageData4 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
     
-    // copy imageData2 to subImage
+    // Copy imageData2 to subImages
     for (int y = 0; y < divideImage2Height; y++) {
         for (int x = 0; x < divideImage2Width; x++) {
             for (int z = 0; z <= componentCount2; z++) {
@@ -170,7 +170,7 @@ int main(int argc, char** argv)
     cudaStream_t stream3; cudaStreamCreate(&stream3);
     cudaStream_t stream4; cudaStreamCreate(&stream4);
     
-    //alocate gpu memory
+    // Alocate GPU memory
     unsigned char* ptrSubImageDataGpu1 = nullptr;
     unsigned char* ptrSubImageDataGpu2 = nullptr;
     unsigned char* ptrSubImageDataGpu3 = nullptr;
