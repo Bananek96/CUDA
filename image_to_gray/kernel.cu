@@ -32,68 +32,6 @@ __global__ void ConvertImageToGrayGpu(unsigned char* imageRGBA)
     ptrPixel->a = 255;
 }
 
-__global__ void ConvertR(unsigned char* imageRGBA)
-{
-    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
-    uint32_t idx = y * blockDim.x * gridDim.x + x;
-
-    Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
-    unsigned char pixelValue = (unsigned char)
-    (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
-    ptrPixel->r = pixelValue;
-    ptrPixel->g = pixelValue;
-    ptrPixel->b = pixelValue;
-    ptrPixel->a = 255;
-}
-
-__global__ void ConvertG(unsigned char* imageRGBA)
-{
-    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
-    uint32_t idx = y * blockDim.x * gridDim.x + x;
-
-    Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
-    unsigned char pixelValue = (unsigned char)
-    (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
-    ptrPixel->r = pixelValue;
-    ptrPixel->g = pixelValue;
-    ptrPixel->b = pixelValue;
-    ptrPixel->a = 255;
-    
-}
-__global__ void ConvertB(unsigned char* imageRGBA)
-{
-    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
-    uint32_t idx = y * blockDim.x * gridDim.x + x;
-
-    Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
-    unsigned char pixelValue = (unsigned char)
-    (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
-    ptrPixel->r = pixelValue;
-    ptrPixel->g = pixelValue;
-    ptrPixel->b = pixelValue;
-    ptrPixel->a = 255;
-}
-
-__global__ void ConvertA(unsigned char* imageRGBA )
-{
-    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
-    uint32_t idx = y * blockDim.x * gridDim.x + x;
-
-
-    Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
-    unsigned char pixelValue = (unsigned char)
-        (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
-    ptrPixel->r = pixelValue;
-    ptrPixel->g = pixelValue;
-    ptrPixel->b = pixelValue;
-    ptrPixel->a = 255;
-   
-}
-
 int main(int argc, char** argv)
 {
     // Check argument count
@@ -142,7 +80,7 @@ int main(int argc, char** argv)
     cout << "Running CUDA Kernel...";
     dim3 blockSize(32, 32);
     dim3 gridSize(width / blockSize.x, height / blockSize.y);
-    ConvertImageToGrayGpu <<<gridSize, blockSize >> > (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize, blockSize >>> (ptrImageDataGpu);
     auto err = cudaGetLastError();
     cout << " DONE" << endl;
 
@@ -188,7 +126,7 @@ int main(int argc, char** argv)
     // Open image
     int width2, height2, componentCount2;
     cout << "Loading png file...";
-    unsigned char* imageData2 = stbi_load(argv[1], &width2, &height2, &componentCount2, 0);
+    unsigned char* imageData2 = stbi_load(argv[1], &width2, &height2, &componentCount2, 4);
     if (!imageData2)
     {
         cout << endl << "Failed to open \"" << argv[1] << "\"";
@@ -205,22 +143,31 @@ int main(int argc, char** argv)
     }
 
     // Divide image into 4sub image
-    const int divideImage2Width = width2 / 2;
-    const int divideImage2Height = height2 / 2;
+    const int divideImage2Width = width2;
+    const int divideImage2Height = height2/2;
+
     // alocate memory
     unsigned char* subImageData1 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
     unsigned char* subImageData2 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
     unsigned char* subImageData3 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
     unsigned char* subImageData4 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
+    
     // copy imageData2 to subImage
-    for (int y = 0; y < divideImage2Height; y++) {
-        for (int x = 0; x < divideImage2Width; x++) {
+    for (int y = 0; y <= height2; y++) {
+        for (int x = 0; x <= width2; x++) {
             subImageData1[y * divideImage2Width + x] = imageData2[y * width2 + x];
-            subImageData2[y * divideImage2Width + x] = imageData2[y * width2 + x + divideImage2Width];
-            subImageData3[y * divideImage2Width + x] = imageData2[(y + divideImage2Height) *  width2 + x];
-            subImageData4[y * divideImage2Width + x] = imageData2[(y + divideImage2Height) * width2 + x + divideImage2Width];
+            subImageData2[y * divideImage2Width + x] = imageData2[(y * width2 + x)*2];
+            subImageData3[y * divideImage2Width + x] = imageData2[(y + divideImage2Height) * width2 + x];
+            subImageData4[y * divideImage2Width + x] = imageData2[((y + divideImage2Height) * width2 + x)*2];
         }
     }
+
+    // Create four CUDA streams.
+    cudaStream_t stream1; cudaStreamCreate(&stream1);
+    cudaStream_t stream2; cudaStreamCreate(&stream2);
+    cudaStream_t stream3; cudaStreamCreate(&stream3);
+    cudaStream_t stream4; cudaStreamCreate(&stream4);
+    
     //alocate gpu memory
     unsigned char* ptrSubImageDataGpu1 = nullptr;
     unsigned char* ptrSubImageDataGpu2 = nullptr;
@@ -235,12 +182,6 @@ int main(int argc, char** argv)
     assert(cudaMemcpy(ptrSubImageDataGpu3, subImageData3, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
     assert(cudaMalloc(&ptrSubImageDataGpu4, divideImage2Width * divideImage2Height * 4) == cudaSuccess);
     assert(cudaMemcpy(ptrSubImageDataGpu4, subImageData4, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
-
-    // Create four CUDA streams.
-    cudaStream_t stream1; cudaStreamCreate(&stream1);
-    cudaStream_t stream2; cudaStreamCreate(&stream2);
-    cudaStream_t stream3; cudaStreamCreate(&stream3);
-    cudaStream_t stream4; cudaStreamCreate(&stream4);
 
     // Start measuring time
     float elapsed2 = 0;
@@ -264,7 +205,7 @@ int main(int argc, char** argv)
     cout << "Running CUDA Kernel...";
     dim3 blockSize2(32, 32);
     dim3 gridSize2(divideImage2Width / blockSize.x, divideImage2Height / blockSize.y);
-    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0,stream1>>> (ptrSubImageDataGpu1);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream1>>> (ptrSubImageDataGpu1);
     ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream2>>> (ptrSubImageDataGpu2);
     ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream3>>> (ptrSubImageDataGpu3);
     ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream4>>> (ptrSubImageDataGpu4);
@@ -279,17 +220,6 @@ int main(int argc, char** argv)
     assert(cudaMemcpy(subImageData4, ptrSubImageDataGpu4, divideImage2Width * divideImage2Height * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
     cout << " DONE" << endl;
 
-
-    for (int y = 0; y < divideImage2Height; y++) {
-        for (int x = 0; x < divideImage2Width; x++) {
-            imageData2[y * width2 + x] = subImageData1[y * divideImage2Width + x];
-            imageData2[y * width2 + x + divideImage2Width] = subImageData2[y * divideImage2Width + x];
-            imageData2[(y + divideImage2Height) * width2 + x] = subImageData3[y * divideImage2Width + x];
-            imageData2[(y + divideImage2Height) * width2 + x + divideImage2Width] = subImageData4[y * divideImage2Width + x];
-            
-        }
-    }
-
     // Stop measuring time and calculate the elapsed time
     cudaEventRecord(stop2, 0);
     cudaEventSynchronize(stop2);
@@ -303,6 +233,17 @@ int main(int argc, char** argv)
     cout << "The elapsed time in gpu: " << time_2 << "ms" << endl;
 
     // Build output filename
+
+    for (int y = 0; y <= height2; y++) {
+        for (int x = 0; x <= width2; x++) {
+            imageData2[y * width2 + x] = subImageData1[y * divideImage2Width + x];
+            imageData2[(y * width2 + x) * 2] = subImageData2[y * divideImage2Width + x];
+            imageData2[(y + divideImage2Height) * width2 + x] = subImageData3[y * divideImage2Width + x];
+            imageData2[((y + divideImage2Height) * width2 + x) * 2] = subImageData4[y * divideImage2Width + x];
+
+        }
+    }
+
     string fileNameOut2 = argv[1];
     fileNameOut2 = fileNameOut2.substr(0, fileNameOut2.find_last_of('.')) + "_gray2.png";
 
