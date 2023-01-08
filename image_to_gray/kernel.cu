@@ -71,12 +71,10 @@ __global__ void ConvertB(unsigned char* imageRGBA)
     Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
     unsigned char pixelValue = (unsigned char)
     (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
-    
     ptrPixel->r = pixelValue;
     ptrPixel->g = pixelValue;
     ptrPixel->b = pixelValue;
     ptrPixel->a = 255;
-       
 }
 
 __global__ void ConvertA(unsigned char* imageRGBA )
@@ -88,6 +86,10 @@ __global__ void ConvertA(unsigned char* imageRGBA )
 
     Pixel* ptrPixel = (Pixel*)&imageRGBA[idx * 4];
     unsigned char pixelValue = (unsigned char)
+        (ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+    ptrPixel->r = pixelValue;
+    ptrPixel->g = pixelValue;
+    ptrPixel->b = pixelValue;
     ptrPixel->a = 255;
    
 }
@@ -120,7 +122,7 @@ int main(int argc, char** argv)
         return -1;
     }
 
-     //Start measuring time
+    //Start measuring time
     float elapsed1 = 0;
     cudaEvent_t start1, stop1;
 
@@ -140,7 +142,7 @@ int main(int argc, char** argv)
     cout << "Running CUDA Kernel...";
     dim3 blockSize(32, 32);
     dim3 gridSize(width / blockSize.x, height / blockSize.y);
-    ConvertImageToGrayGpu <<<gridSize, blockSize>>> (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize, blockSize >> > (ptrImageDataGpu);
     auto err = cudaGetLastError();
     cout << " DONE" << endl;
 
@@ -148,7 +150,7 @@ int main(int argc, char** argv)
     cout << "Copy data from GPU...";
     assert(cudaMemcpy(imageData, ptrImageDataGpu, width * height * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
     cout << " DONE" << endl;
-    
+
     // Stop measuring time and calculate the elapsed time
     cudaEventRecord(stop1, 0);
     cudaEventSynchronize(stop1);
@@ -186,7 +188,7 @@ int main(int argc, char** argv)
     // Open image
     int width2, height2, componentCount2;
     cout << "Loading png file...";
-    unsigned char* imageData2 = stbi_load(argv[1], &width2, &height2, &componentCount2, 4);
+    unsigned char* imageData2 = stbi_load(argv[1], &width2, &height2, &componentCount2, 0);
     if (!imageData2)
     {
         cout << endl << "Failed to open \"" << argv[1] << "\"";
@@ -202,7 +204,37 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    // Making RGB layers
+    // Divide image into 4sub image
+    const int divideImage2Width = width2 / 2;
+    const int divideImage2Height = height2 / 2;
+    // alocate memory
+    unsigned char* subImageData1 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
+    unsigned char* subImageData2 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
+    unsigned char* subImageData3 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
+    unsigned char* subImageData4 = new unsigned char[divideImage2Width * divideImage2Height * componentCount2];
+    // copy imageData2 to subImage
+    for (int y = 0; y < divideImage2Height; y++) {
+        for (int x = 0; x < divideImage2Width; x++) {
+            subImageData1[y * divideImage2Width + x] = imageData2[y * width2 + x];
+            subImageData2[y * divideImage2Width + x] = imageData2[y * width2 + x + divideImage2Width];
+            subImageData3[y * divideImage2Width + x] = imageData2[(y + divideImage2Height) *  width2 + x];
+            subImageData4[y * divideImage2Width + x] = imageData2[(y + divideImage2Height) * width2 + x + divideImage2Width];
+        }
+    }
+    //alocate gpu memory
+    unsigned char* ptrSubImageDataGpu1 = nullptr;
+    unsigned char* ptrSubImageDataGpu2 = nullptr;
+    unsigned char* ptrSubImageDataGpu3 = nullptr;
+    unsigned char* ptrSubImageDataGpu4 = nullptr;
+
+    assert(cudaMalloc(&ptrSubImageDataGpu1, divideImage2Width * divideImage2Height * 4) == cudaSuccess);
+    assert(cudaMemcpy(ptrSubImageDataGpu1, subImageData1, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
+    assert(cudaMalloc(&ptrSubImageDataGpu2, divideImage2Width * divideImage2Height * 4) == cudaSuccess);
+    assert(cudaMemcpy(ptrSubImageDataGpu2, subImageData2, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
+    assert(cudaMalloc(&ptrSubImageDataGpu3, divideImage2Width * divideImage2Height * 4) == cudaSuccess);
+    assert(cudaMemcpy(ptrSubImageDataGpu3, subImageData3, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
+    assert(cudaMalloc(&ptrSubImageDataGpu4, divideImage2Width * divideImage2Height * 4) == cudaSuccess);
+    assert(cudaMemcpy(ptrSubImageDataGpu4, subImageData4, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
 
     // Create four CUDA streams.
     cudaStream_t stream1; cudaStreamCreate(&stream1);
@@ -222,28 +254,41 @@ int main(int argc, char** argv)
     // Copy data to the gpu
     cout << "Copy data to GPU...";
     unsigned char* ptrImageDataGpu2 = nullptr;
-    assert(cudaMalloc(&ptrImageDataGpu2, width2 * height2 * 4) == cudaSuccess);
-    assert(cudaMemcpyAsync(ptrImageDataGpu2, imageData2, width2 * height2 * 4, cudaMemcpyHostToDevice, stream1) == cudaSuccess);
-    assert(cudaMemcpyAsync(ptrImageDataGpu2, imageData2, width2 * height2 * 4, cudaMemcpyHostToDevice, stream2) == cudaSuccess);
-    assert(cudaMemcpyAsync(ptrImageDataGpu2, imageData2, width2 * height2 * 4, cudaMemcpyHostToDevice, stream3) == cudaSuccess);
-    assert(cudaMemcpyAsync(ptrImageDataGpu2, imageData2, width2 * height2 * 4, cudaMemcpyHostToDevice, stream4) == cudaSuccess);
+    assert(cudaMemcpyAsync(ptrSubImageDataGpu1, subImageData1, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice, stream1) == cudaSuccess);
+    assert(cudaMemcpyAsync(ptrSubImageDataGpu2, subImageData2, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice, stream2) == cudaSuccess);
+    assert(cudaMemcpyAsync(ptrSubImageDataGpu3, subImageData3, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice, stream3) == cudaSuccess);
+    assert(cudaMemcpyAsync(ptrSubImageDataGpu4, subImageData4, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice, stream4) == cudaSuccess);
     cout << " DONE" << endl;
 
     // Process image on gpu
     cout << "Running CUDA Kernel...";
     dim3 blockSize2(32, 32);
-    dim3 gridSize2(width2 / blockSize.x, height2 / blockSize.y);
-    ConvertR <<<gridSize2, blockSize2, 0,stream1>>> (ptrImageDataGpu2);
-    ConvertG <<<gridSize2, blockSize2, 0, stream2>>> (ptrImageDataGpu2);
-    ConvertB <<<gridSize2, blockSize2, 0, stream3>>> (ptrImageDataGpu2);
-    ConvertA <<<gridSize2, blockSize2, 0, stream4>>> (ptrImageDataGpu2);
+    dim3 gridSize2(divideImage2Width / blockSize.x, divideImage2Height / blockSize.y);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0,stream1>>> (ptrSubImageDataGpu1);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream2>>> (ptrSubImageDataGpu2);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream3>>> (ptrSubImageDataGpu3);
+    ConvertImageToGrayGpu <<<gridSize2, blockSize2, 0, stream4>>> (ptrSubImageDataGpu4);
     auto error = cudaGetLastError();
     cout << " DONE" << endl;
 
     // Copy data from the gpu
     cout << "Copy data from GPU...";
-    assert(cudaMemcpy(imageData2, ptrImageDataGpu2, width2 * height2 * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
+    assert(cudaMemcpy(subImageData1, ptrSubImageDataGpu1, divideImage2Width * divideImage2Height * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
+    assert(cudaMemcpy(subImageData2, ptrSubImageDataGpu2, divideImage2Width * divideImage2Height * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
+    assert(cudaMemcpy(subImageData3, ptrSubImageDataGpu3, divideImage2Width * divideImage2Height * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
+    assert(cudaMemcpy(subImageData4, ptrSubImageDataGpu4, divideImage2Width * divideImage2Height * 4, cudaMemcpyDeviceToHost) == cudaSuccess);
     cout << " DONE" << endl;
+
+
+    for (int y = 0; y < divideImage2Height; y++) {
+        for (int x = 0; x < divideImage2Width; x++) {
+            imageData2[y * width2 + x] = subImageData1[y * divideImage2Width + x];
+            imageData2[y * width2 + x + divideImage2Width] = subImageData2[y * divideImage2Width + x];
+            imageData2[(y + divideImage2Height) * width2 + x] = subImageData3[y * divideImage2Width + x];
+            imageData2[(y + divideImage2Height) * width2 + x + divideImage2Width] = subImageData4[y * divideImage2Width + x];
+            
+        }
+    }
 
     // Stop measuring time and calculate the elapsed time
     cudaEventRecord(stop2, 0);
