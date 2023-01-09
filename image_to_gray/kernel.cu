@@ -214,6 +214,8 @@ int main(int argc, char** argv)
     auto error = cudaGetLastError();
     cout << " DONE" << endl;
 
+    cudaDeviceSynchronize();
+
     // Copy data from the gpu
     cout << "Copy data from GPU...";
     assert(cudaMemcpy(subImageData1, ptrSubImageDataGpu1, divideImage2Width * divideImage2Height * 4, cudaMemcpyDeviceToHost) == cudaSuccess);

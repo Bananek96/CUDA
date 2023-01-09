@@ -1,7 +1,1 @@
-﻿  Compiling CUDA source file kernel.cu...
-  
-  E:\github\organizacja_komputerow\image_to_gray>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin\nvcc.exe" -gencode=arch=compute_52,code=\"sm_52,compute_52\" --use-local-env -ccbin "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\bin\HostX64\x64" -x cu   -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\include"  -G   --keep-dir x64\Debug  -maxrregcount=0  --machine 64 --compile -cudart static  -g  -DWIN32 -DWIN64 -D_DEBUG -D_CONSOLE -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdx64\Debug\vc143.pdb /FS /Zi /RTC1 /MDd " -o E:\github\organizacja_komputerow\image_to_gray\x64\Debug\kernel.cu.obj "E:\github\organizacja_komputerow\image_to_gray\kernel.cu" 
-  kernel.cu
-     Trwa tworzenie biblioteki E:\github\organizacja_komputerow\image_to_gray\x64\Debug\image_to_gray.lib i obiektu E:\github\organizacja_komputerow\image_to_gray\x64\Debug\image_to_gray.exp
-LINK : warning LNK4098: domyślna biblioteka "LIBCMT" powoduje konflikt z innymi bibliotekami; użyj opcji /NODEFAULTLIB:biblioteka
-  image_to_gray.vcxproj -> E:\github\organizacja_komputerow\image_to_gray\x64\Debug\image_to_gray.exe
+﻿  image_to_gray.vcxproj -> C:\Users\huber\Desktop\0STUDIA\OrganizacjakomputerówProjekt\organizacja_komputerow\image_to_gray\x64\Debug\image_to_gray.exe
