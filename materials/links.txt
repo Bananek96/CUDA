@@ -1,0 +1,3 @@
+https://github.com/Ohjurot/CUDATutorial
+https://forums.developer.nvidia.com/t/how-to-measure-total-time-for-cpu-and-gpu/28234
+https://developer.nvidia.com/cuda-toolkit
