@@ -60,7 +60,16 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    // Create CUDA stream.
+    cudaStream_t stream; cudaStreamCreate(&stream);
+
+    // Alocate GPU memory
+    unsigned char* ptrImageDataGpu = nullptr;
+    assert(cudaMalloc(&ptrImageDataGpu, width * height * 4) == cudaSuccess);
+    assert(cudaMemcpy(ptrImageDataGpu, imageData, width * height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
+
     //Start measuring time
+    cout << "START TIME MEASURE... " << endl;
     float elapsed1 = 0;
     cudaEvent_t start1, stop1;
 
@@ -71,18 +80,18 @@ int main(int argc, char** argv)
 
     // Copy data to the gpu
     cout << "Copy data to GPU...";
-    unsigned char* ptrImageDataGpu = nullptr;
-    assert(cudaMalloc(&ptrImageDataGpu, width * height * 4) == cudaSuccess);
-    assert(cudaMemcpy(ptrImageDataGpu, imageData, width * height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
+    assert(cudaMemcpyAsync(ptrImageDataGpu, imageData, width * height * 4, cudaMemcpyHostToDevice, stream) == cudaSuccess);
     cout << " DONE" << endl;
 
     // Process image on gpu
     cout << "Running CUDA Kernel...";
     dim3 blockSize(32, 32);
     dim3 gridSize(width / blockSize.x, height / blockSize.y);
-    ConvertImageToGrayGpu <<<gridSize, blockSize >>> (ptrImageDataGpu);
+    ConvertImageToGrayGpu <<<gridSize, blockSize, 0, stream>>> (ptrImageDataGpu);
     auto err = cudaGetLastError();
     cout << " DONE" << endl;
+
+    cudaDeviceSynchronize();
 
     // Copy data from the gpu
     cout << "Copy data from GPU...";
@@ -111,6 +120,7 @@ int main(int argc, char** argv)
     cout << " DONE" << endl;
 
     // Free memory
+    cudaStreamDestroy(stream);
     cudaFree(ptrImageDataGpu);
     stbi_image_free(imageData);
 
@@ -186,6 +196,7 @@ int main(int argc, char** argv)
     assert(cudaMemcpy(ptrSubImageDataGpu4, subImageData4, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice) == cudaSuccess);
 
     // Start measuring time
+    cout << "START TIME MEASURE... " << endl;
     float elapsed2 = 0;
     cudaEvent_t start2, stop2;
 
@@ -196,7 +207,6 @@ int main(int argc, char** argv)
 
     // Copy data to the gpu
     cout << "Copy data to GPU...";
-    unsigned char* ptrImageDataGpu2 = nullptr;
     assert(cudaMemcpyAsync(ptrSubImageDataGpu1, subImageData1, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice, stream1) == cudaSuccess);
     assert(cudaMemcpyAsync(ptrSubImageDataGpu2, subImageData2, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice, stream2) == cudaSuccess);
     assert(cudaMemcpyAsync(ptrSubImageDataGpu3, subImageData3, divideImage2Width * divideImage2Height * 4, cudaMemcpyHostToDevice, stream3) == cudaSuccess);
@@ -257,9 +267,16 @@ int main(int argc, char** argv)
     cout << " DONE" << endl;
 
     // Free memory
-    cudaFree(ptrImageDataGpu2);
+    cudaStreamDestroy(stream1);
+    cudaStreamDestroy(stream2);
+    cudaStreamDestroy(stream3);
+    cudaStreamDestroy(stream4);
+    cudaFree(ptrSubImageDataGpu1);
+    cudaFree(ptrSubImageDataGpu2);
+    cudaFree(ptrSubImageDataGpu3);
+    cudaFree(ptrSubImageDataGpu4);
     stbi_image_free(imageData2);
 
-    float time_d = time_2 - time_1;
+    float time_d = time_1 - time_2;
     cout << "Time difference: " << time_d << "ms" << endl;
 }
