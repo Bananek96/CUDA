@@ -32,8 +32,26 @@ __global__ void ConvertImageToGrayGpu(unsigned char* imageRGBA)
     ptrPixel->a = 255;
 }
 
+void ConvertImageToGrayCpu(unsigned char* imageRGBA, int width, int height)
+{
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            Pixel* ptrPixel = (Pixel*)&imageRGBA[y * width * 4 + 4 * x];
+            unsigned char pixelValue = (unsigned char)(ptrPixel->r * 0.2126f + ptrPixel->g * 0.7152f + ptrPixel->b * 0.0722f);
+            ptrPixel->r = pixelValue;
+            ptrPixel->g = pixelValue;
+            ptrPixel->b = pixelValue;
+            ptrPixel->a = 255;
+        }
+    }
+}
+
 int main(int argc, char** argv)
 {
+    // ONE STREAM GPU
+    cout << "ONE STREAM GPU" << endl;
     // Check argument count
     if (argc < 2)
     {
@@ -125,6 +143,8 @@ int main(int argc, char** argv)
     stbi_image_free(imageData);
 
     // Multiple GPUs
+
+    cout << endl << "FOUR STREAMs GPU" << endl;
 
     // Check argument count
     if (argc < 2)
@@ -279,4 +299,71 @@ int main(int argc, char** argv)
 
     float time_d = time_1 - time_2;
     cout << "Time difference: " << time_d << "ms" << endl;
+
+    // CPU 
+    cout << endl << "CPU" << endl;
+    // Check argument count
+    if (argc < 2)
+    {
+        cout << "Usage: 02_ImageToGray <filename>";
+        return -1;
+    }
+
+    // Open image
+    int width1, height1, componentCount1;
+    cout << "Loading png file...";
+    unsigned char* imageData1 = stbi_load(argv[1], &width1, &height1, &componentCount1, 4);
+    if (!imageData1)
+    {
+        cout << endl << "Failed to open \"" << argv[1] << "\"";
+        return -1;
+    }
+    cout << " DONE" << endl;
+
+    // Validate image sizes
+    if (width1 % 32 || height1 % 32)
+    {
+        // NOTE: Leaked memory of "imageData"
+        cout << "Width and/or Height is not dividable by 32!";
+        return -1;
+    }
+
+    //Start measuring time
+    cout << "START TIME MEASURE... " << endl;
+    float elapsed = 0;
+    cudaEvent_t start, stop;
+
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start, 0);
+
+    // Process image on cpu
+    cout << "Processing image...";
+    ConvertImageToGrayCpu(imageData1, width1, height1);
+    cout << " DONE" << endl;
+
+    // Stop measuring time and calculate the elapsed time
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+
+    cudaEventElapsedTime(&elapsed, start, stop);
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    float time = elapsed;
+
+    cout << "The elapsed time in gpu: " << time << "ms" << endl;
+
+    // Build output filename
+    string fileNameOut1 = argv[1];
+    fileNameOut1 = fileNameOut1.substr(0, fileNameOut1.find_last_of('.')) + "_gray.png";
+
+    // Write image back to disk
+    cout << "Writing png to disk...";
+    stbi_write_png(fileNameOut1.c_str(), width1, height1, 4, imageData1, 4 * width1);
+    cout << " DONE" << endl;
+
+    // Free memory
+    stbi_image_free(imageData1);
 }
